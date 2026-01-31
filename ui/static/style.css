@@ -1,17 +1,27 @@
 body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; margin:0; background:#0b0c0f; color:#f6f7fb}
-.container{max-width:1100px; margin:0 auto; padding:18px}
+.container{max-width:1180px; margin:0 auto; padding:18px}
 .top{display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:14px}
 .muted{color:#a9afc3}
 .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:14px}
 @media (max-width: 900px){.grid{grid-template-columns:1fr}}
 .card{border:1px solid rgba(255,255,255,.12); border-radius:16px; background:rgba(255,255,255,.04); padding:14px}
 textarea{width:100%; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.25); color:#f6f7fb; padding:10px; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:13px; line-height:1.4}
-button{border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08); color:#f6f7fb; padding:10px 12px; border-radius:12px; cursor:pointer}
+button{border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08); color:#f6f7fb; padding:9px 11px; border-radius:12px; cursor:pointer}
 button:hover{opacity:.9}
 label{display:block; margin:10px 0 6px; font-size:13px; color:#a9afc3}
-.row{display:flex; justify-content:flex-end; margin-top:10px}
+.row{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px}
 .pill{border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:8px 10px; font-size:12px; color:#a9afc3; background:rgba(255,255,255,.03)}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:12px; color:#f6f7fb}
 pre.mono{white-space:pre-wrap; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.22); padding:10px; max-height:240px; overflow:auto}
 details{margin-top:10px}
 summary{cursor:pointer}
+
+.todo{display:grid; grid-template-columns: 26px 1fr 84px 1fr; gap:8px; align-items:center; margin:8px 0}
+@media (max-width: 700px){.todo{grid-template-columns: 26px 1fr;}}
+.todo input[type="number"]{width:84px}
+.todo input[type="text"], .todo input[type="number"]{border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.22); color:#f6f7fb; padding:8px; font-size:13px}
+.badge{font-weight:650}
+.badge.good{color:#62d98f}
+.badge.fair{color:#f4c95d}
+.badge.bad{color:#ff6b6b}
+.small{font-size:12px}

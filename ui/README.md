@@ -5,8 +5,9 @@ A tiny web UI intended to run on a **headless server** and be viewed from your l
 ## What it edits
 It edits the same file-backed storage as the agent:
 - `planner/latest/plan.md` (editable)
+- `planner/latest/checkin_draft.json` (auto-saved check-in draft)
 - `planner/latest/sglang_issues.md` (read-only, optional)
-- `reflections/reflections.md` (appends check-ins)
+- `reflections/reflections.md` (nightly finalization appends)
 
 ## Run
 
@@ -28,5 +29,8 @@ Open:
 - via Tailscale: `http://<SERVER_TAILSCALE_IP>:8787`
 
 ## Notes
-- V0 keeps logic simple: edit plan text + submit a check-in.
-- V0 does **not** auto-update `tasks.yaml` based on check-ins (agent does bookkeeping).
+- v0.2: check-in auto-saves as a structured draft; no submit required.
+- Nightly finalization is expected to call `POST /api/finalize` (via cron/OpenClaw) to:
+  - append a compact entry into `reflections/reflections.md`
+  - update streak + last summary in `planner/state.json`
+- This still does **not** auto-update `tasks.yaml` based on check-ins (agent does bookkeeping).
