@@ -15,6 +15,34 @@ V1 is intentionally simple: the “product” is a clean data model + an operati
 
 ---
 
+## New user setup (recommended path)
+
+### A) Server setup (headless)
+
+1) SSH into your server.
+2) Run the bootstrap script:
+
+```bash
+# Set where your planner files live (must contain planner/ and reflections/)
+export PLANNER_ROOT=/path/to/your/workspace_root
+
+# Run bootstrap
+bash scripts/bootstrap_server.sh
+```
+
+3) Connect Tailscale:
+```bash
+sudo tailscale up
+```
+Follow the printed login URL on your laptop.
+
+### B) Agent onboarding (OpenClaw)
+
+Copy/paste this into your OpenClaw agent chat:
+- `ONBOARD_AGENT_OPENCLAW.md`
+
+---
+
 ## Quick start (template only)
 
 1) Copy `template/` to your private workspace.
