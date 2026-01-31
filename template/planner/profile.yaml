@@ -1,0 +1,27 @@
+# Example profile (edit for your life)
+
+timezone: America/Los_Angeles
+wake_time: "08:30"
+daily_plan_delivery_time: "08:50"
+
+work_blocks:
+  - "09:00-11:00"
+  - "13:00-17:00"
+  - "18:00-20:00"
+
+fixed_routines:
+  workout:
+    window: "11:10-11:50"
+    duration_min: 40
+  lunch:
+    window: "11:50-12:30"
+
+commute:
+  typical_one_way_min: 20
+
+weekly_fixed_events:
+  - name: "Example class"
+    day: tue
+    time: "15:30-16:50"
+    location: campus
+    commute_min_each_way: 20

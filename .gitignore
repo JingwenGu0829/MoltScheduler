@@ -1,0 +1,11 @@
+# keep personal/private stuff out
+.env
+.DS_Store
+
+# local caches
+*.log
+*.sqlite
+*.db
+
+# generated artifacts (optional)
+planner/daily/

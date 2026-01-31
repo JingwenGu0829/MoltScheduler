@@ -1,0 +1,26 @@
+week_start: "mon"
+
+tasks:
+  - id: important-project
+    title: "Important project"
+    type: weekly_budget
+    priority: 8
+    status: active
+    target_hours_per_week: 8
+    min_chunk_minutes: 60
+
+  - id: deadline-paper
+    title: "Deadline paper"
+    type: deadline_project
+    priority: 10
+    status: active
+    remaining_hours: 12
+    min_chunk_minutes: 60
+    max_chunk_minutes: 180
+
+  - id: maintenance
+    title: "Daily maintenance"
+    type: daily_ritual
+    priority: 5
+    status: active
+    estimated_minutes_per_day: 10
