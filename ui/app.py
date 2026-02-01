@@ -277,13 +277,26 @@ app = FastAPI(title="MoltFocus UI", version="0.2.0")
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-security = HTTPBasic()
+security = HTTPBasic(auto_error=False)
 
 
-def get_current_user(credentials: HTTPBasicCredentials = Depends(security)) -> str:
+def get_current_user(credentials: HTTPBasicCredentials | None = Depends(security)) -> str:
     """Verify HTTP Basic Auth credentials from environment variables."""
     expected_username = os.environ.get("MOLTFOCUS_USERNAME", "")
     expected_password = os.environ.get("MOLTFOCUS_PASSWORD", "")
+
+    # If no Authorization header provided
+    if credentials is None:
+        # allow only if server is in guest mode
+        expected_username = os.environ.get("MOLTFOCUS_USERNAME", "")
+        expected_password = os.environ.get("MOLTFOCUS_PASSWORD", "")
+        if not expected_username or not expected_password:
+            return "guest"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Basic"},
+        )
 
     # If no credentials configured, allow access (backward compatible)
     if not expected_username or not expected_password:
