@@ -347,9 +347,9 @@ def index() -> HTMLResponse:
       <details>
         <summary><b>Meta files</b> <span class="muted small">(profile/tasks)</span></summary>
         <div class="muted small" style="margin-top:8px">planner/profile.yaml</div>
-        {_render_obj(profile_obj) if profile_txt.strip() else '<span class="muted">(missing)</span>'}
+        <pre class="mono">{_escape(profile_txt or "(missing)")}</pre>
         <div class="muted small" style="margin-top:8px">planner/tasks.yaml</div>
-        {_render_obj(tasks_obj) if tasks_txt.strip() else '<span class="muted">(missing)</span>'}
+        <pre class="mono">{_escape(tasks_txt or "(missing)")}</pre>
       </details>
     </section>
 <footer class=\"muted small\">v0.2 · Draft auto-saves to <code>planner/latest/checkin_draft.json</code>. Nightly finalization updates streak + summary.</footer>
