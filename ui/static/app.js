@@ -72,7 +72,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const toggleBtn = document.querySelector('#planToggle');
   const planPane = document.querySelector('#planPane');
-  const planTA = document.querySelector('#plan');
   const planPV = document.querySelector('#planPreview');
 
   function setToggleLabel() {

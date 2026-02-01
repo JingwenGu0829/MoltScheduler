@@ -235,7 +235,7 @@ def index() -> HTMLResponse:
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>MoltFocus</title>
-  <link rel=\"stylesheet\" href=\"/static/style.css\" />
+  <link rel=\"stylesheet\" href=\"/static/style.css?v={ASSET_V}\" />
   <script src="/static/marked.min.js?v={ASSET_V}"></script>
 </head>
 <body>
@@ -252,17 +252,18 @@ def index() -> HTMLResponse:
       <div class=\"card\">
         <h2>Plan (edit directly)</h2>
         <form method=\"post\" action=\"/save_plan\">
-          <div class=\"row\" style=\"margin-top:0\">
-            <div class=\"muted small\">Markdown renders by default. Click Edit to modify.</div>
-            <div style=\"display:flex; gap:8px\">
-              <button id=\"planEdit\" type=\"button\">Edit</button>
-              <button id=\"planPreviewBtn\" type=\"button\">Preview</button>
-              <button type=\"submit\">Save</button>
+          <div class=\"planbar\">
+            <div class=\"muted small\">Click plan to edit; click outside to preview.</div>
+            <div class=\"planbar-actions\">
+              <button id=\"planToggle\" type=\"button\">Edit</button>
+              <button id=\"savePlan\" type=\"submit\">Save</button>
             </div>
           </div>
 
-          <div id=\"planPreview\" class=\"md\"></div>
-          <textarea id=\"plan\" name=\"plan_md\" rows=\"20\" style=\"display:none\">{_escape(plan_md)}</textarea>
+          <div id=\"planPane\">
+            <div id=\"planPreview\" class=\"md\"></div>
+            <textarea id=\"plan\" name=\"plan_md\" rows=\"20\" style=\"display:none\">{_escape(plan_md)}</textarea>
+          </div>
 
           <div class=\"muted small\" style=\"margin-top:8px\">Tip: embed tasks as markdown checkboxes: <code>- [ ] Thesis 2h</code></div>
         </form>
