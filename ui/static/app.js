@@ -53,14 +53,6 @@ async function saveDraftNow() {
 
 const saveDraft = debounce(saveDraftNow, 500);
 
-async function writeFocus(payload) {
-  try {
-    await postJSON('/api/focus', payload);
-  } catch (e) {
-    console.error(e);
-  }
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   // Plan: preview by default
   if (document.querySelector('#planPreview')) {
@@ -78,32 +70,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const manual = document.querySelector('#manualSave');
   if (manual) manual.addEventListener('click', (e) => { e.preventDefault(); saveDraftNow(); });
-
-  const focusStart = document.querySelector('#focusStart');
-  const focusStop = document.querySelector('#focusStop');
-  const focusSelect = document.querySelector('#focusSelect');
-  const focusStatus = document.querySelector('#focusStatus');
-
-  if (focusStart && focusSelect) {
-    focusStart.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const key = focusSelect.value;
-      if (!key) return;
-      const label = focusSelect.options[focusSelect.selectedIndex]?.textContent || '';
-      const startedAt = new Date().toISOString();
-      await writeFocus({ active: true, key, label, startedAt });
-      if (focusStatus) focusStatus.textContent = `Focus started: ${label}`;
-    });
-  }
-
-  if (focusStop) {
-    focusStop.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const stoppedAt = new Date().toISOString();
-      await writeFocus({ active: false, stoppedAt });
-      if (focusStatus) focusStatus.textContent = 'Focus stopped.';
-    });
-  }
 });
 
 
@@ -117,15 +83,6 @@ function renderPlanPreview() {
   } else {
     pv.textContent = src;
   }
-}
-
-function showPlanEdit() {
-  const ta = document.querySelector('#plan');
-  const pv = document.querySelector('#planPreview');
-  if (!ta || !pv) return;
-  pv.style.display = 'none';
-  ta.style.display = 'block';
-  ta.focus();
 }
 
 function showPlanPreview() {

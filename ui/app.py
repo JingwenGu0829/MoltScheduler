@@ -4,22 +4,45 @@ import json
 import os
 import re
 import difflib
-from datetime import datetime, date
+import fcntl
+import tempfile
+from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import yaml
 
 ASSET_V = "20260201-01"
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import Body
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import secrets
 
 
 def _workspace_root() -> Path:
     # PLANNER_ROOT should be the workspace root that contains planner/ and reflections/
     return Path(os.environ.get("PLANNER_ROOT", str(Path.home() / "planner"))).expanduser().resolve()
+
+
+def _get_user_timezone() -> ZoneInfo:
+    """Get user's timezone from profile.yaml, defaulting to system timezone."""
+    root = _workspace_root()
+    profile_path = root / "planner" / "profile.yaml"
+
+    try:
+        profile_txt = _read_text(profile_path)
+        if profile_txt.strip():
+            profile = yaml.safe_load(profile_txt)
+            if isinstance(profile, dict) and "timezone" in profile:
+                return ZoneInfo(profile["timezone"])
+    except Exception:
+        pass
+
+    # Fallback to UTC if profile not found or invalid
+    return ZoneInfo("UTC")
 
 
 def _read_text(path: Path) -> str:
@@ -44,6 +67,98 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
+    """Atomic write with file locking for safe concurrent access."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write to temp file first
+    fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=".tmp_", suffix=".json")
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            # Acquire exclusive lock
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+        # Atomic rename
+        os.rename(temp_path, path)
+    except Exception:
+        # Clean up temp file on error
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    """Atomic write with file locking for safe concurrent access."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write to temp file first
+    fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=".tmp_", suffix=".txt")
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            # Acquire exclusive lock
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(content)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+        # Atomic rename
+        os.rename(temp_path, path)
+    except Exception:
+        # Clean up temp file on error
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+
+def _write_yaml_atomic(path: Path, data: dict[str, Any]) -> None:
+    """Atomic YAML write with file locking for safe concurrent access."""
+    content = yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    _write_text_atomic(path, content)
+
+
+def _validate_task(task: dict[str, Any]) -> list[str]:
+    """Validate task schema and return list of errors (empty if valid)."""
+    errors = []
+
+    # Required fields
+    if "id" not in task:
+        errors.append("Missing required field: id")
+    if "title" not in task:
+        errors.append("Missing required field: title")
+    if "type" not in task:
+        errors.append("Missing required field: type")
+    elif task["type"] not in {"deadline_project", "weekly_budget", "daily_ritual", "open_ended"}:
+        errors.append(f"Invalid task type: {task['type']}")
+
+    # Type-specific validation
+    if task.get("type") == "deadline_project":
+        if "remaining_hours" in task and not isinstance(task["remaining_hours"], (int, float)):
+            errors.append("remaining_hours must be numeric")
+    elif task.get("type") == "weekly_budget":
+        if "target_hours_per_week" in task and not isinstance(task["target_hours_per_week"], (int, float)):
+            errors.append("target_hours_per_week must be numeric")
+
+    # Status validation
+    if "status" in task and task["status"] not in {"active", "paused", "complete"}:
+        errors.append(f"Invalid status: {task['status']}")
+
+    # Priority validation
+    if "priority" in task:
+        if not isinstance(task["priority"], int) or task["priority"] < 1 or task["priority"] > 10:
+            errors.append("priority must be integer 1-10")
+
+    return errors
+
+
 def _prepend_reflection(ref_path: Path, entry_md: str) -> None:
     existing = _read_text(ref_path)
     if existing.strip() == "":
@@ -56,7 +171,7 @@ def _prepend_reflection(ref_path: Path, entry_md: str) -> None:
         new = head + "\n" + entry_md.strip() + "\n\n" + tail.lstrip()
     else:
         new = entry_md.strip() + "\n\n" + existing
-    _write_text(ref_path, new)
+    _write_text_atomic(ref_path, new)
 
 
 def _escape(s: str) -> str:
@@ -114,7 +229,9 @@ def _extract_checkboxes(plan_md: str) -> list[dict[str, str]]:
 
 
 def _today_str() -> str:
-    return date.today().isoformat()
+    """Get today's date in user's timezone from profile.yaml."""
+    user_tz = _get_user_timezone()
+    return datetime.now(user_tz).date().isoformat()
 
 
 def _compute_rating(done_count: int, total_items: int, reflection: str, any_time: bool) -> str:
@@ -160,6 +277,31 @@ app = FastAPI(title="MoltFocus UI", version="0.2.0")
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+security = HTTPBasic()
+
+
+def get_current_user(credentials: HTTPBasicCredentials = Depends(security)) -> str:
+    """Verify HTTP Basic Auth credentials from environment variables."""
+    expected_username = os.environ.get("MOLTFOCUS_USERNAME", "")
+    expected_password = os.environ.get("MOLTFOCUS_PASSWORD", "")
+
+    # If no credentials configured, allow access (backward compatible)
+    if not expected_username or not expected_password:
+        return "guest"
+
+    # Constant-time comparison to prevent timing attacks
+    correct_username = secrets.compare_digest(credentials.username.encode("utf-8"), expected_username.encode("utf-8"))
+    correct_password = secrets.compare_digest(credentials.password.encode("utf-8"), expected_password.encode("utf-8"))
+
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    return credentials.username
+
 
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
@@ -167,19 +309,16 @@ def healthz() -> dict[str, str]:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
+def index(username: str = Depends(get_current_user)) -> HTMLResponse:
     root = _workspace_root()
     plan_path = root / "planner" / "latest" / "plan.md"
     plan_prev_path = root / "planner" / "latest" / "plan_prev.md"
-    issues_path = root / "planner" / "latest" / "sglang_issues.md"
 
     ref_path = root / "reflections" / "reflections.md"
     draft_path = root / "planner" / "latest" / "checkin_draft.json"
-    focus_path = root / "planner" / "latest" / "focus.json"
     state_path = root / "planner" / "state.json"
 
     plan_md = _read_text(plan_path) or "# Plan\n\n(no plan yet)\n"
-    issues_md = _read_text(issues_path)
 
     profile_path = root / "planner" / "profile.yaml"
     tasks_path = root / "planner" / "tasks.yaml"
@@ -187,14 +326,19 @@ def index() -> HTMLResponse:
     profile_txt = _read_text(profile_path)
     tasks_txt = _read_text(tasks_path)
 
+    profile_parse_error = None
     try:
         profile_obj = yaml.safe_load(profile_txt) if profile_txt.strip() else {}
-    except Exception:
-        profile_obj = {"_parse_error": "failed to parse YAML"}
+    except Exception as e:
+        profile_obj = {}
+        profile_parse_error = f"YAML parse error: {str(e)}"
+
+    tasks_parse_error = None
     try:
         tasks_obj = yaml.safe_load(tasks_txt) if tasks_txt.strip() else {}
-    except Exception:
-        tasks_obj = {"_parse_error": "failed to parse YAML"}
+    except Exception as e:
+        tasks_obj = {}
+        tasks_parse_error = f"YAML parse error: {str(e)}"
 
     checkboxes = _extract_checkboxes(plan_md)
 
@@ -291,9 +435,8 @@ def index() -> HTMLResponse:
         <h2>Plan (edit directly)</h2>
         <form method=\"post\" action=\"/save_plan\">
           <div class=\"planbar\">
-            <div class=\"muted small\">Click plan to edit; click outside to preview. (No button.)</div>
+            <div class=\"muted small\">Click plan to edit; click outside to preview.</div>
             <div class=\"planbar-actions\">
-              <button id=\"planToggle\" type=\"button\">Edit</button>
               <button id=\"savePlan\" type=\"submit\">Save</button>
             </div>
           </div>
@@ -347,8 +490,10 @@ def index() -> HTMLResponse:
       <details>
         <summary><b>Meta files</b> <span class="muted small">(profile/tasks)</span></summary>
         <div class="muted small" style="margin-top:8px">planner/profile.yaml</div>
+        {f'<div style="color:#ff6b6b; background:rgba(255,107,107,0.1); padding:8px; border-radius:6px; margin:8px 0; font-size:13px"><b>⚠ {_escape(profile_parse_error)}</b></div>' if profile_parse_error else ''}
         <pre class="mono">{_escape(profile_txt or "(missing)")}</pre>
         <div class="muted small" style="margin-top:8px">planner/tasks.yaml</div>
+        {f'<div style="color:#ff6b6b; background:rgba(255,107,107,0.1); padding:8px; border-radius:6px; margin:8px 0; font-size:13px"><b>⚠ {_escape(tasks_parse_error)}</b></div>' if tasks_parse_error else ''}
         <pre class="mono">{_escape(tasks_txt or "(missing)")}</pre>
       </details>
     </section>
@@ -367,7 +512,7 @@ def index() -> HTMLResponse:
 
 
 @app.post("/save_plan")
-def save_plan(plan_md: str = Form(...)) -> RedirectResponse:
+def save_plan(plan_md: str = Form(...), username: str = Depends(get_current_user)) -> RedirectResponse:
     root = _workspace_root()
     plan_path = root / "planner" / "latest" / "plan.md"
     prev_path = root / "planner" / "latest" / "plan_prev.md"
@@ -381,10 +526,9 @@ def save_plan(plan_md: str = Form(...)) -> RedirectResponse:
 
 
 @app.post("/api/checkin_draft")
-def api_checkin_draft(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def api_checkin_draft(payload: dict[str, Any] = Body(...), username: str = Depends(get_current_user)) -> dict[str, Any]:
     root = _workspace_root()
     draft_path = root / "planner" / "latest" / "checkin_draft.json"
-    focus_path = root / "planner" / "latest" / "focus.json"
 
     day = _today_str()
     mode_in = (payload.get("mode", "commit") or "commit").strip().lower()
@@ -405,27 +549,27 @@ def api_checkin_draft(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
             "comment": str(it.get("comment", "")),
         }
 
+    user_tz = _get_user_timezone()
     draft = {
         "day": day,
-        "updatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "updatedAt": datetime.now(user_tz).isoformat(timespec="seconds"),
         "mode": mode_in,
             "items": items,
         "reflection": reflection,
     }
 
-    _write_json(draft_path, draft)
+    _write_json_atomic(draft_path, draft)
     return {"ok": True, "day": day}
 
 
 @app.post("/api/finalize")
-def api_finalize() -> dict[str, Any]:
+def api_finalize(username: str = Depends(get_current_user)) -> dict[str, Any]:
     """Finalize today's draft into reflections + update streak/summary.
 
     Intended to be called by a nightly cron/job.
     """
     root = _workspace_root()
     draft_path = root / "planner" / "latest" / "checkin_draft.json"
-    focus_path = root / "planner" / "latest" / "focus.json"
     state_path = root / "planner" / "state.json"
     ref_path = root / "reflections" / "reflections.md"
 
@@ -439,14 +583,9 @@ def api_finalize() -> dict[str, Any]:
         draft_mode = "commit"
 
     items = draft.get("items", {}) or {}
-    mode = (draft.get("mode", "commit") or "commit").strip().lower()
-    if mode not in {"commit","recovery"}:
-        mode = "commit"
     reflection = draft.get("reflection", "") or ""
 
     done_items = []
-    minutes_total = 0
-    any_time = False
     for k, v in items.items():
         if v.get("done"):
             done_items.append(str(v.get("label", "(item)")))
@@ -458,9 +597,9 @@ def api_finalize() -> dict[str, Any]:
     plan_prev_path = root / "planner" / "latest" / "plan_prev.md"
     plan_changed = plan_prev_path.exists() and _read_text(plan_prev_path).strip() != ""
 
-    rating = _compute_rating(done_count, total_items, reflection, any_time)
+    rating = _compute_rating(done_count, total_items, reflection, False)
     # recovery mode is more forgiving
-    if draft_mode == "recovery" and rating == "bad" and (done_count >= 1 or len(reflection.strip()) >= 30 or any_time):
+    if draft_mode == "recovery" and rating == "bad" and (done_count >= 1 or len(reflection.strip()) >= 30):
         rating = "fair"
     counts = _counts_for_streak(done_count, reflection, plan_changed)
     if draft_mode == "recovery":
@@ -476,7 +615,7 @@ def api_finalize() -> dict[str, Any]:
             streak += 1
             state["lastStreakDate"] = today
 
-    summary = _summarize_paragraph(today, rating, done_items, minutes_total, reflection)
+    summary = _summarize_paragraph(today, rating, done_items, 0, reflection)
 
     # history (keep last 30 days)
     hist = state.get("history", []) or []
@@ -492,12 +631,13 @@ def api_finalize() -> dict[str, Any]:
 
 
     # prepend reflection entry
-    now = datetime.now().astimezone()
+    user_tz = _get_user_timezone()
+    now = datetime.now(user_tz)
     entry_lines = [
         f"## {today}",
         f"- Time: {now.isoformat(timespec='minutes')}",
         "",
-        f"**Rating:** {rating.upper()}"
+        f"**Rating:** {rating.upper()}",
         "",
         f"**Mode:** {draft_mode.upper()}",
         "",
@@ -542,25 +682,96 @@ def api_finalize() -> dict[str, Any]:
     state["lastMode"] = draft_mode
     state["lastSummary"] = summary
     state["lastFinalizedDate"] = today
-    _write_json(state_path, state)
+    _write_json_atomic(state_path, state)
 
     # clear draft after finalize
-    _write_json(draft_path, {"day": today, "updatedAt": now.isoformat(timespec="seconds"), "items": {}, "reflection": ""})
+    _write_json_atomic(draft_path, {"day": today, "updatedAt": now.isoformat(timespec="seconds"), "items": {}, "reflection": ""})
 
     return {"ok": True, "day": today, "rating": rating, "streak": streak}
 
 
 @app.get("/raw/plan")
-def raw_plan() -> PlainTextResponse:
+def raw_plan(username: str = Depends(get_current_user)) -> PlainTextResponse:
     root = _workspace_root()
     plan_path = root / "planner" / "latest" / "plan.md"
     return PlainTextResponse(_read_text(plan_path) or "")
 
 
-@app.post("/api/focus")
-def api_focus(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+@app.post("/api/update_task")
+def api_update_task(payload: dict[str, Any] = Body(...), username: str = Depends(get_current_user)) -> dict[str, Any]:
+    """Update a task in tasks.yaml with validation and atomic writes.
+
+    Payload format:
+    {
+        "task_id": "task-id-here",
+        "updates": {
+            "remaining_hours": 10,
+            "status": "active",
+            ...
+        }
+    }
+    """
     root = _workspace_root()
-    focus_path = root / "planner" / "latest" / "focus.json"
-    payload["updatedAt"] = datetime.now().astimezone().isoformat(timespec="seconds")
-    _write_json(focus_path, payload)
-    return {"ok": True}
+    tasks_path = root / "planner" / "tasks.yaml"
+
+    task_id = payload.get("task_id")
+    updates = payload.get("updates", {})
+
+    if not task_id:
+        raise HTTPException(status_code=400, detail="Missing task_id")
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="Missing updates")
+
+    # Read current tasks
+    tasks_txt = _read_text(tasks_path)
+    if not tasks_txt.strip():
+        raise HTTPException(status_code=404, detail="tasks.yaml is empty or missing")
+
+    try:
+        tasks_data = yaml.safe_load(tasks_txt)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse tasks.yaml: {str(e)}")
+
+    if not isinstance(tasks_data, dict) or "tasks" not in tasks_data:
+        raise HTTPException(status_code=400, detail="tasks.yaml must contain 'tasks' key")
+
+    tasks_list = tasks_data.get("tasks", [])
+    if not isinstance(tasks_list, list):
+        raise HTTPException(status_code=400, detail="'tasks' must be a list")
+
+    # Find and update task
+    task_found = False
+    updated_task = None
+    for i, task in enumerate(tasks_list):
+        if task.get("id") == task_id:
+            task_found = True
+            # Apply updates
+            for key, value in updates.items():
+                task[key] = value
+
+            # Validate updated task
+            validation_errors = _validate_task(task)
+            if validation_errors:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Task validation failed: {'; '.join(validation_errors)}"
+                )
+
+            tasks_list[i] = task
+            updated_task = task
+            break
+
+    if not task_found:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+    # Write atomically
+    tasks_data["tasks"] = tasks_list
+    try:
+        _write_yaml_atomic(tasks_path, tasks_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write tasks.yaml: {str(e)}")
+
+    return {"ok": True, "task": updated_task}
+
+
