@@ -253,7 +253,7 @@ def index() -> HTMLResponse:
         <h2>Plan (edit directly)</h2>
         <form method=\"post\" action=\"/save_plan\">
           <div class=\"planbar\">
-            <div class=\"muted small\">Click plan to edit; click outside to preview.</div>
+            <div class=\"muted small\">Click plan to edit; click outside to preview. (No button.)</div>
             <div class=\"planbar-actions\">
               <button id=\"planToggle\" type=\"button\">Edit</button>
               <button id=\"savePlan\" type=\"submit\">Save</button>
