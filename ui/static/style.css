@@ -29,7 +29,7 @@ pre.mono{white-space:pre-wrap; border-radius:12px; border:1px solid rgba(255,255
 summary{cursor:pointer}
 
 /* Todo rows: checkbox | label | comment all on one line */
-.todo{display:grid; grid-template-columns: 22px minmax(0,1fr) 260px; gap:10px; align-items:center; padding:10px; border:1px solid rgba(255,255,255,.10); border-radius:12px; background:rgba(0,0,0,.14); margin:10px 0}
+.todo{display:grid; grid-template-columns: 22px 1fr 1fr; gap:10px; align-items:center; padding:10px; border:1px solid rgba(255,255,255,.10); border-radius:12px; background:rgba(0,0,0,.14); margin:10px 0}
 .todo [data-label]{min-width:0; font-size:12.5px; line-height:1.2}
 .todo input[data-comment]{width:100%; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.22); color:#f6f7fb; padding:8px; font-size:12.5px}
 @media (max-width: 700px){
@@ -51,3 +51,6 @@ summary{cursor:pointer}
 .md ul{margin:6px 0 6px 18px}
 .md code{background:rgba(255,255,255,.06); padding:2px 6px; border-radius:8px}
 .md pre{background:rgba(0,0,0,.28); padding:10px; border-radius:12px; overflow:auto}
+
+.todo-title{font-size:12.5px; line-height:1.2}
+.todo-dur{margin-top:2px}

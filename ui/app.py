@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+ASSET_V = "20260201-01"
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -201,6 +203,13 @@ def index() -> HTMLResponse:
     for cb in checkboxes:
         key = cb["key"]
         label = cb["label"]
+        title = label
+        dur = ""
+        m = re.search(r"^(.*?)(?:\s*[—-]\s*)(\d+\s*[mh])\s*$", label)
+        if m:
+            title = m.group(1).strip()
+            dur = m.group(2).strip()
+
         d = items_by_key.get(key, {})
         done = bool(d.get("done", False))
         comment = d.get("comment", "") or ""
@@ -209,7 +218,7 @@ def index() -> HTMLResponse:
             f"""
             <div class=\"todo\" data-item-row data-key=\"{_escape(key)}\">
               <input type=\"checkbox\" {'checked' if done else ''} />
-              <div data-label>\n                <span class=\"small\">{_escape(label)}</span>
+              <div data-label>\n                <div class=\"todo-title\">{_escape(title)}</div>{f"<div class=\"todo-dur muted small\">{_escape(dur)}</div>" if dur else ""}
               </div>
               <input data-comment type=\"text\" placeholder=\"comment\" value=\"{_escape(comment)}\" />
             </div>
@@ -227,7 +236,7 @@ def index() -> HTMLResponse:
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>MoltFocus</title>
   <link rel=\"stylesheet\" href=\"/static/style.css\" />
-  <script src="/static/marked.min.js"></script>
+  <script src="/static/marked.min.js?v={ASSET_V}"></script>
 </head>
 <body>
   <div class=\"container\">
