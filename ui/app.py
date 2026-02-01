@@ -303,7 +303,18 @@ def index() -> HTMLResponse:
       <div class=\"muted\">{_escape(last_summary or '(not generated yet)')}</div>
     </section>
 
-    <footer class=\"muted small\">v0.2 · Draft auto-saves to <code>planner/latest/checkin_draft.json</code>. Nightly finalization updates streak + summary.</footer>
+    
+
+    <section class="card">
+      <details>
+        <summary><b>Meta files</b> <span class="muted small">(profile/tasks)</span></summary>
+        <div class="muted small" style="margin-top:8px">planner/profile.yaml</div>
+        <pre class="mono">{_escape(profile_txt or '(missing)')}</pre>
+        <div class="muted small" style="margin-top:8px">planner/tasks.yaml</div>
+        <pre class="mono">{_escape(tasks_txt or '(missing)')}</pre>
+      </details>
+    </section>
+<footer class=\"muted small\">v0.2 · Draft auto-saves to <code>planner/latest/checkin_draft.json</code>. Nightly finalization updates streak + summary.</footer>
   </div>
 
   <script src=\"/static/app.js?v={ASSET_V}\"></script>
