@@ -41,6 +41,8 @@ cd MoltFocus
 
 That's it. The CLI installs dependencies, asks if you want **demo mode** (sample data, instant UI) or **full setup** (your agent personalizes everything), and starts the server.
 
+Quick demo walkthrough: open [`demo.html`](demo.html).
+
 If the server stops later, restart it:
 
 ```bash
