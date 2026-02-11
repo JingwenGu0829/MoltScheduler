@@ -33,6 +33,8 @@ Everything is backed by plain files (YAML, JSON, Markdown) — inspectable, vers
 
 ## Get started
 
+Note that for now the project is only designed to run on a machine where openclaw is already downloaded and configured.
+
 ```bash
 git clone https://github.com/JingwenGu0829/MoltFocus.git
 cd MoltFocus
@@ -40,22 +42,6 @@ cd MoltFocus
 ```
 
 That's it. The CLI installs dependencies, asks if you want **demo mode** (sample data, instant UI) or **full setup** (your agent personalizes everything), and starts the server.
-
-Quick demo walkthrough: open [`demo.html`](demo.html).
-
-If the server stops later, restart it:
-
-```bash
-cd MoltFocus
-export PLANNER_ROOT=/path/to/workspace_root
-export HOST=0.0.0.0
-export PORT=8787
-./scripts/run_ui.sh
-```
-
-Then:
-- same machine: open `http://localhost:8787`
-- remote server: create tunnel `ssh -N -L 8787:127.0.0.1:8787 <user>@<server>` then open `http://localhost:8787` on your personal computer
 
 For full setup, point your agent at `ONBOARD_AGENT_OPENCLAW.md` — it handles the rest.
 
